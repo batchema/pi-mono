@@ -363,10 +363,10 @@ export class AgentSessionRuntime {
 		return { cancelled: false };
 	}
 
-	async dispose(): Promise<void> {
+	async dispose(reason: SessionShutdownEvent["reason"] = "quit"): Promise<void> {
 		await emitSessionShutdownEvent(this.session.extensionRunner, {
 			type: "session_shutdown",
-			reason: "quit",
+			reason,
 		});
 		this.beforeSessionInvalidate?.();
 		this.session.dispose();

@@ -85,6 +85,7 @@ import { copyToClipboard } from "../../utils/clipboard.js";
 import { extensionForImageMimeType, readClipboardImage } from "../../utils/clipboard-image.js";
 import { parseGitUrl } from "../../utils/git.js";
 import { getPiUserAgent } from "../../utils/pi-user-agent.js";
+import { buildRestartArgs } from "../../utils/restart-args.js";
 import { killTrackedDetachedChildren } from "../../utils/shell.js";
 import { ensureTool } from "../../utils/tools-manager.js";
 import { checkForNewPiVersion } from "../../utils/version-check.js";
@@ -2529,6 +2530,11 @@ export class InteractiveMode {
 				await this.handleReloadCommand();
 				return;
 			}
+			if (text === "/restart") {
+				this.editor.setText("");
+				await this.restart();
+				return;
+			}
 			if (text === "/debug") {
 				this.handleDebugCommand();
 				this.editor.setText("");
@@ -3221,6 +3227,54 @@ export class InteractiveMode {
 		this.stop();
 		await this.runtimeHost.dispose();
 		process.exit(0);
+	}
+
+	private async restart(): Promise<void> {
+		if (this.isShuttingDown) return;
+		this.isShuttingDown = true;
+		this.unregisterSignalHandlers();
+
+		const sessionFile = this.session.sessionFile;
+		this.showStatus(`Restarting ${APP_NAME}...`);
+		this.ui.requestRender();
+		await new Promise((resolve) => setTimeout(resolve, 50));
+		await this.ui.terminal.drainInput(1000);
+		this.stop({ showCursor: false });
+		await this.runtimeHost.dispose("restart");
+
+		const currentArgs = process.argv.slice(1);
+		const firstArg = currentArgs[0];
+		const preserveEntrypoint =
+			firstArg !== undefined && (firstArg.endsWith(".js") || firstArg.includes("/") || firstArg.includes("\\"));
+		const restartArgs = buildRestartArgs({
+			currentArgs,
+			preserveEntrypoint,
+			sessionFile,
+		});
+
+		try {
+			const child = spawn(process.execPath, [...process.execArgv, ...restartArgs], {
+				cwd: process.cwd(),
+				env: process.env,
+				stdio: "inherit",
+			});
+			const exitCode = await new Promise<number>((resolve, reject) => {
+				child.once("error", reject);
+				child.once("exit", (code, signal) => {
+					if (typeof code === "number") {
+						resolve(code);
+						return;
+					}
+					resolve(signal === "SIGHUP" ? 129 : signal === "SIGINT" ? 130 : signal === "SIGTERM" ? 143 : 1);
+				});
+			});
+			process.exit(exitCode);
+		} catch (error) {
+			process.stdout.write("\x1b[?25h");
+			const message = error instanceof Error ? error.message : String(error);
+			console.error(`Failed to restart ${APP_NAME}: ${message}`);
+			process.exit(1);
+		}
 	}
 
 	/**
@@ -5402,7 +5456,7 @@ export class InteractiveMode {
 		}
 	}
 
-	stop(): void {
+	stop(options?: { showCursor?: boolean }): void {
 		this.unregisterSignalHandlers();
 		if (this.settingsManager.getShowTerminalProgress()) {
 			this.ui.terminal.setProgress(false);
@@ -5418,7 +5472,7 @@ export class InteractiveMode {
 			this.unsubscribe();
 		}
 		if (this.isInitialized) {
-			this.ui.stop();
+			this.ui.stop(options);
 			this.isInitialized = false;
 		}
 	}

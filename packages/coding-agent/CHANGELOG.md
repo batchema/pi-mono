@@ -2,6 +2,10 @@
 
 ## [Unreleased]
 
+### Added
+
+- Added `/restart` to restart pi and resume the current session.
+
 ### Changed
 
 - Changed `read` tool rendering to collapse Pi documentation, AGENTS/CLAUDE context files, and `SKILL.md` contents by default in interactive output.

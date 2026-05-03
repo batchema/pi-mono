@@ -551,7 +551,7 @@ export interface SessionCompactEvent {
 /** Fired before an extension runtime is torn down due to quit, reload, or session replacement. */
 export interface SessionShutdownEvent {
 	type: "session_shutdown";
-	reason: "quit" | "reload" | "new" | "resume" | "fork";
+	reason: "quit" | "reload" | "restart" | "new" | "resume" | "fork";
 	/** Destination session file when shutting down due to session replacement. */
 	targetSessionFile?: string;
 }

@@ -447,7 +447,7 @@ export class TUI extends Container {
 		this.terminal.write("\x1b[16t");
 	}
 
-	stop(): void {
+	stop(options?: { showCursor?: boolean }): void {
 		this.stopped = true;
 		if (this.renderTimer) {
 			clearTimeout(this.renderTimer);
@@ -465,7 +465,9 @@ export class TUI extends Container {
 			this.terminal.write("\r\n");
 		}
 
-		this.terminal.showCursor();
+		if (options?.showCursor !== false) {
+			this.terminal.showCursor();
+		}
 		this.terminal.stop();
 	}
 
